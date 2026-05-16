@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taruchhaya Wholesale | Inventory Management</title>
+    <link rel="stylesheet" href="/src/style.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-overlay">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="logo-icon large">
+                    <i data-lucide="package"></i>
+                </div>
+                <h2>Taruchhaya Wholesale</h2>
+                <p>Please sign in to continue</p>
+            </div>
+            <div class="login-body">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="login-username" class="form-control" placeholder="Enter username">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" class="form-control" placeholder="Enter password">
+                </div>
+                <button class="btn btn-primary btn-block" id="btn-login" style="width: 100%; margin-top: 12px; height: 48px;">
+                    Sign In
+                </button>
+                <div id="login-error" class="error-text" style="display: none; color: var(--danger); font-size: 0.875rem; text-align: center; margin-top: 16px;">
+                    Invalid username or password
+                </div>
+                <div style="text-align: center; margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+                    <p style="font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">Developed with ❤️ by Swapnil Sarkar.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container" style="display: none;">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">
+                    <i data-lucide="package"></i>
+                </div>
+                <div>
+                    <span class="logo-text">Taruchhaya</span>
+                    <div id="current-date" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Saturday, 16 May 2026</div>
+                </div>
+            </div>
+            <nav class="nav-links">
+                <a href="#" class="nav-item active" data-page="dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                    Dashboard
+                </a>
+                <a href="#" class="nav-item" data-page="inventory">
+                    <i data-lucide="boxes"></i>
+                    Smart Inventory
+                </a>
+                <a href="#" class="nav-item" data-page="history">
+                    <i data-lucide="history"></i>
+                    Stock History
+                </a>
+                <a href="#" class="nav-item" data-page="settings">
+                    <i data-lucide="settings"></i>
+                    Data & Settings
+                </a>
+                <a href="#" class="nav-item" id="nav-reports" data-page="reports">
+                    <i data-lucide="folder-open"></i>
+                    Daily Reports
+                </a>
+                <a href="#" class="nav-item" id="btn-generate-report" style="color: var(--success);">
+                    <i data-lucide="file-check"></i>
+                    Generate Report
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <p style="font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">
+                    Developed with ❤️ by Swapnil Sarkar.
+                </p>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Header -->
+            <header class="header">
+                <div class="header-title">
+                    <button class="menu-toggle btn btn-ghost" id="menu-toggle">
+                        <i data-lucide="menu"></i>
+                    </button>
+                    <h1 id="page-title">Overview</h1>
+                </div>
+                <div class="header-actions">
+                    <div class="search-bar" style="position: relative;">
+                        <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; color: var(--text-muted);"></i>
+                        <input type="text" class="form-control" id="global-search" placeholder="Search inventory..." style="padding-left: 40px; width: 300px;">
+                    </div>
+                    <button class="btn btn-primary" id="btn-scan">
+                        <i data-lucide="scan-barcode"></i>
+                        Quick Scan
+                    </button>
+                </div>
+            </header>
+
+            <!-- Dashboard Page -->
+            <div id="page-dashboard" class="page">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <h3>Total Stock</h3>
+                            <div class="stat-value" id="stat-total-stock">0</div>
+                        </div>
+                        <div class="stat-icon" style="background: var(--primary-light); color: var(--primary);">
+                            <i data-lucide="package"></i>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <h3>Low Stock Items</h3>
+                            <div class="stat-value" id="stat-low-stock" style="color: var(--warning);">0</div>
+                        </div>
+                        <div class="stat-icon" style="background: var(--warning-light); color: var(--warning);">
+                            <i data-lucide="alert-triangle"></i>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-info">
+                            <h3>Total Products</h3>
+                            <div class="stat-value" id="stat-total-products">0</div>
+                        </div>
+                        <div class="stat-icon" style="background: var(--success-light); color: var(--success);">
+                            <i data-lucide="list"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Low Stock Alerts (Less than 5)</h2>
+                        <button class="btn btn-ghost btn-sm" id="view-inventory-from-dash">View Inventory</button>
+                    </div>
+                    <div class="table-container">
+                        <table id="low-stock-table">
+                            <thead>
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th>SKU</th>
+                                    <th>Category</th>
+                                    <th>Current Stock</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="low-stock-body">
+                                <!-- Rows dynamic -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inventory Page -->
+            <div id="page-inventory" class="page" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Inventory Management</h2>
+                        <div style="display: flex; gap: 12px;">
+                            <button class="btn btn-secondary" id="btn-export-csv">
+                                <i data-lucide="download"></i>
+                                Export
+                            </button>
+                            <button class="btn btn-primary" id="btn-add-product">
+                                <i data-lucide="plus"></i>
+                                Add Product
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="inventory-table">
+                            <thead>
+                                <tr>
+                                    <th>Product Name</th>
+                                    <th>SKU / Barcode</th>
+                                    <th>Category</th>
+                                    <th>Stock</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-body">
+                                <!-- Rows dynamic -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- History Page -->
+            <div id="page-history" class="page" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Stock Movement History</h2>
+                        <div style="display: flex; gap: 12px;">
+                            <button class="btn btn-secondary" id="btn-export-history">
+                                <i data-lucide="download"></i>
+                                Export History
+                            </button>
+                            <button class="btn btn-ghost" id="btn-clear-history" style="color: var(--danger);">
+                                <i data-lucide="trash-2"></i>
+                                Clear History
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table id="full-history-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Product</th>
+                                    <th>SKU</th>
+                                    <th>Type</th>
+                                    <th>Quantity</th>
+                                    <th>Old Balance</th>
+                                    <th>New Balance</th>
+                                    <th>Note</th>
+                                </tr>
+                            </thead>
+                            <tbody id="full-history-body">
+                                <!-- Rows dynamic -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Page -->
+            <div id="page-settings" class="page" style="display: none;">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">System Settings</h2>
+                    </div>
+                    <div class="form-group">
+                        <label>Data Management</label>
+                        <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 16px;">
+                            Clear all inventory data and history. This action cannot be undone.
+                        </p>
+                        <button class="btn btn-secondary" id="btn-clear-data" style="color: var(--danger); border-color: var(--danger-light);">
+                            <i data-lucide="trash-2"></i>
+                            Clear All Data
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reports Page -->
+            <div id="page-reports" class="page" style="display: none;">
+                <div class="reports-layout">
+                    <div class="card reports-sidebar">
+                        <div class="card-header">
+                            <h2 class="card-title">Daily Files</h2>
+                        </div>
+                        <div class="report-list" id="report-date-list">
+                            <!-- Date list items dynamic -->
+                        </div>
+                    </div>
+                    <div class="card reports-main">
+                        <div class="card-header">
+                            <h2 class="card-title" id="report-view-title">Select a report</h2>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-secondary btn-sm" id="btn-print-report" style="display: none;">
+                                    <i data-lucide="printer"></i> Print
+                                </button>
+                                <button class="btn btn-ghost btn-sm" id="btn-delete-report" style="display: none; color: var(--danger);">
+                                    <i data-lucide="trash-2"></i> Delete
+                                </button>
+                            </div>
+                        </div>
+                        <div id="report-content" class="report-content">
+                            <div class="empty-state" style="text-align: center; padding: 40px;">
+                                <i data-lucide="file-text" style="width: 48px; height: 48px; color: var(--text-muted); opacity: 0.5; margin-bottom: 12px;"></i>
+                                <p style="color: var(--text-muted);">Choose a date from the left to view detailed stock movements.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <!-- Stock Adjustment Modal -->
+    <div class="modal-overlay" id="modal-adjustment">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="adjustment-title">Stock Adjustment</h3>
+                <button class="btn btn-ghost" id="close-adjustment"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div id="scanner-container"></div>
+                <div class="form-group">
+                    <label>Product</label>
+                    <div id="adjustment-product-name" style="font-weight: 600; font-size: 1.1rem; margin-bottom: 4px;">--</div>
+                    <div id="adjustment-product-sku" style="color: var(--text-muted); font-family: monospace;">--</div>
+                </div>
+                <div class="adjustment-type">
+                    <div class="type-btn active" data-type="inward">
+                        <i data-lucide="arrow-down-left"></i>
+                        Inward (+)
+                    </div>
+                    <div class="type-btn" data-type="outward">
+                        <i data-lucide="arrow-up-right"></i>
+                        Outward (-)
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Quantity</label>
+                    <input type="number" class="form-control" id="adjustment-qty" value="1" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Reason / Note (Optional)</label>
+                    <input type="text" class="form-control" id="adjustment-note" placeholder="e.g. New Batch, Sale, Return">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-adjustment">Cancel</button>
+                <button class="btn btn-primary" id="save-adjustment">Apply Adjustment</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Product Modal -->
+    <div class="modal-overlay" id="modal-product">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="product-modal-title">Add New Product</h3>
+                <button class="btn btn-ghost" id="close-product-modal"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="product-form">
+                    <div class="form-group">
+                        <label>Product Name</label>
+                        <input type="text" class="form-control" id="prod-name" required placeholder="Enter product name">
+                    </div>
+                    <div class="form-group">
+                        <label>SKU / Barcode</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" class="form-control" id="prod-sku" required placeholder="Scan or enter SKU">
+                            <button type="button" class="btn btn-secondary" id="btn-scan-sku"><i data-lucide="camera"></i></button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Category</label>
+                        <select class="form-control" id="prod-category">
+                            <option value="General">General</option>
+                            <option value="Electronics">Electronics</option>
+                            <option value="Food">Food</option>
+                            <option value="Beverage">Beverage</option>
+                            <option value="Clothing">Clothing</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Price</label>
+                        <input type="number" class="form-control" id="prod-price" placeholder="0.00" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Initial Stock</label>
+                        <input type="number" class="form-control" id="prod-stock" value="0" min="0">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancel-product">Cancel</button>
+                <button class="btn btn-primary" id="save-product">Save Product</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reports Password Modal -->
+    <div class="modal-overlay" id="modal-reports-auth">
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Owner Verification</h3>
+                <button class="btn btn-ghost" id="close-reports-auth"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <div class="logo-icon" style="width: 48px; height: 48px; margin: 0 auto 16px; background: var(--warning-light); color: var(--warning);">
+                        <i data-lucide="lock"></i>
+                    </div>
+                    <p style="color: var(--text-muted); font-size: 0.875rem;">Please enter your owner password to access daily reports.</p>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" class="form-control" id="reports-pass-input" placeholder="••••">
+                </div>
+                <div id="reports-auth-error" style="display: none; color: var(--danger); font-size: 0.875rem; text-align: center; margin-top: -12px; margin-bottom: 12px;">
+                    Incorrect password
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; flex-direction: column; gap: 8px;">
+                <button class="btn btn-primary" id="btn-submit-reports-auth" style="width: 100%;">Access Reports</button>
+                <button class="btn btn-ghost" id="cancel-reports-auth" style="width: 100%;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script type="module" src="/src/main.js"></script>
+    <!-- Barcode Library -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+</body>
+</html>
