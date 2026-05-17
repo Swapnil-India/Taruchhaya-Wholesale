@@ -17,7 +17,7 @@ let reportsAuthCallback = null;
 // --- Initialize UI ---
 document.addEventListener('DOMContentLoaded', () => {
     initLucide();
-    
+
     // Always require login before entering the main page
     setupLogin();
 });
@@ -49,12 +49,12 @@ function handleLogin() {
 async function showApp() {
     document.getElementById('login-screen').style.display = 'none';
     document.querySelector('.app-container').style.display = 'flex';
-    
+
     setupEventListeners();
     setupGlobalBarcodeListener();
-    
+
     await loadDataFromSupabase();
-    
+
     updateDashboardStats();
     renderInventoryTable();
     renderLowStockAlerts();
@@ -81,16 +81,16 @@ async function loadDataFromSupabase() {
             .from('products')
             .select('*')
             .order('name', { ascending: true });
-            
+
         if (prodError) {
             showToast('Error loading products: ' + prodError.message, 'danger');
             updateCloudStatus(false);
             return;
         }
-        
+
         inventory = dbProducts.map(p => ({
             name: p.name,
-            sku: p.sku,
+            sku: p.barcode || p.sku,
             category: p.category,
             price: p.price,
             stock: p.stock
@@ -189,8 +189,8 @@ function renderInventoryTable(filter = '') {
     const tbody = document.getElementById('inventory-body');
     tbody.innerHTML = '';
 
-    const filtered = inventory.filter(item => 
-        item.name.toLowerCase().includes(filter.toLowerCase()) || 
+    const filtered = inventory.filter(item =>
+        item.name.toLowerCase().includes(filter.toLowerCase()) ||
         item.sku.toLowerCase().includes(filter.toLowerCase())
     );
 
@@ -234,7 +234,7 @@ function renderLowStockAlerts() {
         const tr = document.createElement('tr');
         const statusClass = item.stock == 0 ? 'stock-out' : 'stock-low';
         const statusText = item.stock == 0 ? 'Out of Stock' : 'Critical Low';
-        
+
         tr.innerHTML = `
             <td><div class="item-name">${item.name}</div></td>
             <td><div class="item-sku">${item.sku}</div></td>
@@ -257,8 +257,8 @@ function renderFullHistory(filter = '') {
     const tbody = document.getElementById('full-history-body');
     tbody.innerHTML = '';
 
-    const filtered = history.filter(log => 
-        log.productName.toLowerCase().includes(filter.toLowerCase()) || 
+    const filtered = history.filter(log =>
+        log.productName.toLowerCase().includes(filter.toLowerCase()) ||
         log.productSku.toLowerCase().includes(filter.toLowerCase())
     );
 
@@ -271,7 +271,7 @@ function renderFullHistory(filter = '') {
         const tr = document.createElement('tr');
         const typeClass = log.type === 'inward' ? 'stock-in' : 'stock-out';
         const typeIcon = log.type === 'inward' ? 'arrow-down-left' : 'arrow-up-right';
-        
+
         tr.innerHTML = `
             <td style="font-size: 0.8rem; color: var(--text-muted);">${new Date(log.timestamp).toLocaleString()}</td>
             <td><div class="item-name">${log.productName}</div></td>
@@ -295,7 +295,7 @@ function setupEventListeners() {
             e.preventDefault();
             const page = item.getAttribute('data-page');
             showPage(page);
-            
+
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             item.classList.add('active');
         });
@@ -322,7 +322,7 @@ function setupEventListeners() {
     document.getElementById('global-search').addEventListener('input', (e) => {
         const val = e.target.value;
         const activePage = document.querySelector('.page:not([style*="display: none"])');
-        
+
         if (activePage.id === 'page-inventory') renderInventoryTable(val);
         if (activePage.id === 'page-history') renderFullHistory(val);
     });
@@ -345,12 +345,12 @@ function setupEventListeners() {
                 .from('history')
                 .delete()
                 .eq('finalized', false);
-                
+
             if (error) {
                 showToast('Database error: ' + error.message, 'danger');
                 return;
             }
-            
+
             history = [];
             saveData();
             renderFullHistory();
@@ -405,13 +405,13 @@ function setupEventListeners() {
                         const { error } = await supabase
                             .from('products')
                             .delete()
-                            .eq('sku', sku);
-                            
+                            .eq('barcode', sku);
+
                         if (error) {
                             showToast('Database error: ' + error.message, 'danger');
                             return;
                         }
-                        
+
                         inventory = inventory.filter(p => p.sku !== sku);
                         saveData();
                         renderInventoryTable();
@@ -447,12 +447,12 @@ function setupEventListeners() {
                 .from('history')
                 .delete()
                 .neq('product_name', '');
-                
+
             const { error: prodError } = await supabase
                 .from('products')
                 .delete()
-                .neq('sku', '');
-                
+                .neq('barcode', '');
+
             if (histError || prodError) {
                 showToast('Database error: ' + (histError?.message || prodError?.message), 'danger');
                 return;
@@ -512,7 +512,7 @@ function showPage(pageId) {
     document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
     document.getElementById(`page-${pageId}`).style.display = 'block';
     document.getElementById('page-title').textContent = pageId.charAt(0).toUpperCase() + pageId.slice(1);
-    
+
     if (pageId === 'inventory') renderInventoryTable();
     if (pageId === 'history') renderFullHistory();
     if (pageId === 'dashboard') {
@@ -528,37 +528,37 @@ function showPage(pageId) {
 function handleReportsAccess() {
     document.getElementById('reports-pass-input').value = '';
     document.getElementById('reports-auth-error').style.display = 'none';
-    
+
     reportsAuthCallback = () => {
         showPage('reports');
         document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
         document.getElementById('nav-reports').classList.add('active');
     };
-    
+
     showModal('modal-reports-auth');
     setTimeout(() => document.getElementById('reports-pass-input').focus(), 100);
 }
 
 function handleDeleteReport() {
     if (!currentViewingReportDate) return;
-    
+
     document.getElementById('reports-pass-input').value = '';
     document.getElementById('reports-auth-error').style.display = 'none';
-    
+
     reportsAuthCallback = async () => {
         if (confirm(`Are you sure you want to PERMANENTLY delete the report for ${currentViewingReportDate}?`)) {
             // Check if it's archived
             if (finalizedReports[currentViewingReportDate]) {
                 const startDate = `${currentViewingReportDate}T00:00:00.000Z`;
                 const endDate = `${currentViewingReportDate}T23:59:59.999Z`;
-                
+
                 const { error } = await supabase
                     .from('history')
                     .delete()
                     .eq('finalized', true)
                     .gte('timestamp', startDate)
                     .lte('timestamp', endDate);
-                    
+
                 if (error) {
                     showToast('Database error: ' + error.message, 'danger');
                     return;
@@ -568,7 +568,7 @@ function handleDeleteReport() {
                 saveData();
                 showToast(`Report for ${currentViewingReportDate} deleted`, 'success');
                 renderReportsList();
-                
+
                 // Clear view
                 document.getElementById('report-content').innerHTML = `
                     <div class="empty-state" style="text-align: center; padding: 40px;">
@@ -585,7 +585,7 @@ function handleDeleteReport() {
             }
         }
     };
-    
+
     showModal('modal-reports-auth');
     setTimeout(() => document.getElementById('reports-pass-input').focus(), 100);
 }
@@ -593,7 +593,7 @@ function handleDeleteReport() {
 function submitReportsAuth() {
     const pass = document.getElementById('reports-pass-input').value;
     const errorEl = document.getElementById('reports-auth-error');
-    
+
     if (pass === '1364') {
         hideModal('modal-reports-auth');
         if (reportsAuthCallback) reportsAuthCallback();
@@ -615,7 +615,7 @@ async function handleGenerateReport() {
             .from('history')
             .update({ finalized: true })
             .eq('finalized', false);
-            
+
         if (error) {
             showToast('Database error: ' + error.message, 'danger');
             return;
@@ -625,7 +625,7 @@ async function handleGenerateReport() {
         history.forEach(log => {
             const d = new Date(log.timestamp);
             const dateStr = d.toISOString().split('T')[0];
-            
+
             if (!finalizedReports[dateStr]) {
                 finalizedReports[dateStr] = [];
             }
@@ -635,13 +635,13 @@ async function handleGenerateReport() {
         // Reset history
         history = [];
         saveData();
-        
+
         renderFullHistory();
         updateDashboardStats();
         renderLowStockAlerts();
-        
+
         showToast('Report generated and business day reset!', 'success');
-        
+
         // Success message is enough
     }
 }
@@ -655,7 +655,7 @@ function renderReportsList() {
         const d = new Date(log.timestamp);
         return d.toISOString().split('T')[0];
     }))];
-    
+
     const archivedDates = Object.keys(finalizedReports);
     const allDates = [...new Set([...historyDates, ...archivedDates])].sort().reverse();
 
@@ -668,7 +668,7 @@ function renderReportsList() {
         const item = document.createElement('div');
         item.className = 'report-date-item';
         const isArchive = archivedDates.includes(date) && !historyDates.includes(date);
-        
+
         item.innerHTML = `
             <i data-lucide="${isArchive ? 'file-check' : 'file-text'}" style="color: ${isArchive ? 'var(--success)' : 'var(--text-muted)'}"></i>
             <span>${date} ${isArchive ? '(Finalized)' : '(Active)'}</span>
@@ -687,10 +687,10 @@ function renderReport(date) {
     currentViewingReportDate = date;
     const content = document.getElementById('report-content');
     const title = document.getElementById('report-view-title');
-    
+
     title.textContent = `Report: ${date}`;
     document.getElementById('btn-print-report').style.display = 'block';
-    
+
     // Only show delete for finalized reports
     if (finalizedReports[date]) {
         document.getElementById('btn-delete-report').style.display = 'block';
@@ -703,7 +703,7 @@ function renderReport(date) {
         const d = new Date(log.timestamp);
         return d.toISOString().split('T')[0] === date;
     });
-    
+
     const archivedDayLogs = finalizedReports[date] || [];
     const dayLogs = [...archivedDayLogs, ...activeDayLogs];
 
@@ -728,7 +728,7 @@ function renderReport(date) {
                 <div class="report-row">
                     <div><strong>${log.productName}</strong><br><span style="font-size: 0.7rem; color: var(--text-muted);">${log.productSku}</span></div>
                     <div style="text-align: right; color: var(--success); font-weight: 600;">+${log.quantity}</div>
-                    <div style="text-align: right; font-size: 0.75rem; color: var(--text-muted);">${new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                    <div style="text-align: right; font-size: 0.75rem; color: var(--text-muted);">${new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                 </div>
             `;
         });
@@ -753,14 +753,14 @@ function renderReport(date) {
                 <div class="report-row">
                     <div><strong>${log.productName}</strong><br><span style="font-size: 0.7rem; color: var(--text-muted);">${log.productSku}</span></div>
                     <div style="text-align: right; color: var(--danger); font-weight: 600;">-${log.quantity}</div>
-                    <div style="text-align: right; font-size: 0.75rem; color: var(--text-muted);">${new Date(log.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                    <div style="text-align: right; font-size: 0.75rem; color: var(--text-muted);">${new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                 </div>
             `;
         });
     }
 
     html += '</div>';
-    
+
     // Summary
     const totalIn = inward.reduce((sum, l) => sum + parseInt(l.quantity), 0);
     const totalOut = outward.reduce((sum, l) => sum + parseInt(l.quantity), 0);
@@ -813,23 +813,24 @@ async function handleSaveProduct() {
 
     const existingIndex = inventory.findIndex(p => p.sku === sku);
     const productData = { sku, name, category, price, stock };
-    
+    const dbProductData = { barcode: sku, name, category, price, stock };
+
     let dbError;
     if (existingIndex > -1) {
         // Update in Supabase
         const { error } = await supabase
             .from('products')
             .update({ name, category, price, stock })
-            .eq('sku', sku);
+            .eq('barcode', sku);
         dbError = error;
     } else {
         // Insert in Supabase
         const { error } = await supabase
             .from('products')
-            .insert(productData);
+            .insert(dbProductData);
         dbError = error;
     }
-    
+
     if (dbError) {
         showToast('Database error: ' + dbError.message, 'danger');
         return;
@@ -900,13 +901,13 @@ async function handleSaveAdjustment() {
     const { error: prodError } = await supabase
         .from('products')
         .update({ stock: newStock })
-        .eq('sku', product.sku);
-        
+        .eq('barcode', product.sku);
+
     if (prodError) {
         showToast('Database error (stock update): ' + prodError.message, 'danger');
         return;
     }
-    
+
     // 2. Insert history log in Supabase
     const historyLog = {
         timestamp: new Date().toISOString(),
@@ -919,11 +920,11 @@ async function handleSaveAdjustment() {
         note: note,
         finalized: false
     };
-    
+
     const { error: histError } = await supabase
         .from('history')
         .insert(historyLog);
-        
+
     if (histError) {
         showToast('Database error (history log): ' + histError.message, 'danger');
     }
@@ -958,11 +959,11 @@ function setupGlobalBarcodeListener() {
     document.addEventListener('keydown', (e) => {
         // Most hardware scanners act like keyboards and end with 'Enter'
         const currentTime = new Date().getTime();
-        
+
         if (currentTime - lastTime > 100) {
             barcode = '';
         }
-        
+
         if (e.key === 'Enter') {
             if (barcode.length > 2) {
                 handleBarcodeInput(barcode);
@@ -971,7 +972,7 @@ function setupGlobalBarcodeListener() {
         } else if (e.key.length === 1) {
             barcode += e.key;
         }
-        
+
         lastTime = currentTime;
     });
 }
@@ -999,11 +1000,11 @@ function openQuickScan() {
 function startCameraScanner(targetId) {
     document.getElementById('scanner-container').style.display = 'block';
     html5QrCode = new Html5Qrcode("scanner-container");
-    
+
     const config = { fps: 10, qrbox: { width: 250, height: 250 } };
 
     html5QrCode.start(
-        { facingMode: "environment" }, 
+        { facingMode: "environment" },
         config,
         (decodedText) => {
             document.getElementById(targetId).value = decodedText;
@@ -1025,7 +1026,7 @@ function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    
+
     let icon = 'info';
     if (type === 'success') icon = 'check-circle';
     if (type === 'danger') icon = 'alert-circle';
@@ -1035,7 +1036,7 @@ function showToast(message, type = 'info') {
         <i data-lucide="${icon}"></i>
         <span>${message}</span>
     `;
-    
+
     container.appendChild(toast);
     initLucide();
 
@@ -1052,7 +1053,7 @@ function exportInventoryToCSV() {
         showToast('No inventory data to export', 'warning');
         return;
     }
-    
+
     const headers = ["sku", "name", "category", "price", "stock"];
     const rows = inventory.map(item => [
         item.sku,
@@ -1061,12 +1062,12 @@ function exportInventoryToCSV() {
         item.price || 0,
         item.stock || 0
     ]);
-    
+
     const csvContent = [
         headers.join(","),
         ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
     ].join("\n");
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -1083,7 +1084,7 @@ function exportHistoryToCSV() {
         showToast('No movement history to export', 'warning');
         return;
     }
-    
+
     const headers = ["Timestamp", "Product SKU", "Product Name", "Type", "Quantity", "Old Balance", "New Balance", "Note"];
     const rows = history.map(log => [
         new Date(log.timestamp).toLocaleString('en-IN'),
@@ -1095,12 +1096,12 @@ function exportHistoryToCSV() {
         log.newBalance,
         log.note || ''
     ]);
-    
+
     const csvContent = [
         headers.join(","),
         ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
     ].join("\n");
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
