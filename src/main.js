@@ -334,6 +334,10 @@ function setupEventListeners() {
         document.querySelector('[data-page="inventory"]').classList.add('active');
     });
 
+    // CSV Export Listeners
+    document.getElementById('btn-export-csv').addEventListener('click', exportInventoryToCSV);
+    document.getElementById('btn-export-history').addEventListener('click', exportHistoryToCSV);
+
     // History Actions
     document.getElementById('btn-clear-history').addEventListener('click', async () => {
         if (confirm('Are you sure you want to clear all movement history? Inventory levels will NOT be affected.')) {
@@ -1040,4 +1044,70 @@ function showToast(message, type = 'info') {
         toast.style.transform = 'translateX(20px)';
         setTimeout(() => toast.remove(), 300);
     }, 3000);
+}
+
+// --- CSV Export Abstractions ---
+function exportInventoryToCSV() {
+    if (inventory.length === 0) {
+        showToast('No inventory data to export', 'warning');
+        return;
+    }
+    
+    const headers = ["sku", "name", "category", "price", "stock"];
+    const rows = inventory.map(item => [
+        item.sku,
+        item.name,
+        item.category,
+        item.price || 0,
+        item.stock || 0
+    ]);
+    
+    const csvContent = [
+        headers.join(","),
+        ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `taruchhaya_inventory_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Inventory exported successfully', 'success');
+}
+
+function exportHistoryToCSV() {
+    if (history.length === 0) {
+        showToast('No movement history to export', 'warning');
+        return;
+    }
+    
+    const headers = ["Timestamp", "Product SKU", "Product Name", "Type", "Quantity", "Old Balance", "New Balance", "Note"];
+    const rows = history.map(log => [
+        new Date(log.timestamp).toLocaleString('en-IN'),
+        log.productSku,
+        log.productName,
+        log.type,
+        log.quantity,
+        log.oldBalance,
+        log.newBalance,
+        log.note || ''
+    ]);
+    
+    const csvContent = [
+        headers.join(","),
+        ...rows.map(row => row.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+    ].join("\n");
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `taruchhaya_history_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Stock history exported successfully', 'success');
 }
