@@ -340,23 +340,27 @@ function setupEventListeners() {
 
     // History Actions
     document.getElementById('btn-clear-history').addEventListener('click', async () => {
-        if (confirm('Are you sure you want to clear all movement history? Inventory levels will NOT be affected.')) {
-            const { error } = await supabase
-                .from('history')
-                .delete()
-                .eq('finalized', false);
+        showConfirmModal(
+            'Clear History',
+            'Are you sure you want to clear all movement history? Inventory levels will NOT be affected.',
+            async () => {
+                const { error } = await supabase
+                    .from('history')
+                    .delete()
+                    .eq('finalized', false);
 
-            if (error) {
-                showToast('Database error: ' + error.message, 'danger');
-                return;
+                if (error) {
+                    showToast('Database error: ' + error.message, 'danger');
+                    return;
+                }
+
+                history = [];
+                saveData();
+                renderFullHistory();
+                renderLowStockAlerts();
+                showToast('History cleared', 'info');
             }
-
-            history = [];
-            saveData();
-            renderFullHistory();
-            renderLowStockAlerts();
-            showToast('History cleared', 'info');
-        }
+        );
     });
 
     // Product Modal
@@ -401,23 +405,27 @@ function setupEventListeners() {
                 } else if (btn.classList.contains('btn-edit')) {
                     openEditProductModal(product);
                 } else if (btn.classList.contains('btn-delete')) {
-                    if (confirm(`Are you sure you want to delete ${product.name}?`)) {
-                        const { error } = await supabase
-                            .from('products')
-                            .delete()
-                            .eq('barcode', sku);
+                    showConfirmModal(
+                        'Delete Product',
+                        `Are you sure you want to delete "${product.name}"? This cannot be undone.`,
+                        async () => {
+                            const { error } = await supabase
+                                .from('products')
+                                .delete()
+                                .eq('barcode', sku);
 
-                        if (error) {
-                            showToast('Database error: ' + error.message, 'danger');
-                            return;
+                            if (error) {
+                                showToast('Database error: ' + error.message, 'danger');
+                                return;
+                            }
+
+                            inventory = inventory.filter(p => p.sku !== sku);
+                            saveData();
+                            renderInventoryTable();
+                            renderLowStockAlerts();
+                            showToast(`Product "${product.name}" deleted`, 'info');
                         }
-
-                        inventory = inventory.filter(p => p.sku !== sku);
-                        saveData();
-                        renderInventoryTable();
-                        renderLowStockAlerts();
-                        showToast(`Product ${product.name} deleted`, 'info');
-                    }
+                    );
                 }
             });
         }
@@ -442,30 +450,35 @@ function setupEventListeners() {
 
     // Clear Data
     document.getElementById('btn-clear-data').addEventListener('click', async () => {
-        if (confirm('CRITICAL: This will delete ALL products and history. Proceed?')) {
-            const { error: histError } = await supabase
-                .from('history')
-                .delete()
-                .neq('product_name', '');
+        showConfirmModal(
+            '⚠️ Critical Action',
+            'This will permanently delete ALL products and history from the database. This cannot be undone. Proceed?',
+            async () => {
+                const { error: histError } = await supabase
+                    .from('history')
+                    .delete()
+                    .neq('product_name', '');
 
-            const { error: prodError } = await supabase
-                .from('products')
-                .delete()
-                .neq('barcode', '');
+                const { error: prodError } = await supabase
+                    .from('products')
+                    .delete()
+                    .neq('barcode', '');
 
-            if (histError || prodError) {
-                showToast('Database error: ' + (histError?.message || prodError?.message), 'danger');
-                return;
+                if (histError || prodError) {
+                    showToast('Database error: ' + (histError?.message || prodError?.message), 'danger');
+                    return;
+                }
+
+                inventory = [];
+                history = [];
+                finalizedReports = {};
+                saveData();
+                renderInventoryTable();
+                renderFullHistory();
+                renderLowStockAlerts();
+                showToast('All data cleared', 'warning');
             }
-
-            inventory = [];
-            history = [];
-            saveData();
-            renderInventoryTable();
-            renderFullHistory();
-            renderLowStockAlerts();
-            showToast('All data cleared', 'warning');
-        }
+        );
     });
 
     // Logout
@@ -476,10 +489,10 @@ function setupEventListeners() {
     logoutBtn.innerHTML = '<i data-lucide="log-out"></i> Logout';
     logoutBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        if (confirm('Are you sure you want to logout?')) {
+        showConfirmModal('Logout', 'Are you sure you want to logout?', () => {
             localStorage.removeItem('tw_session');
             window.location.reload();
-        }
+        });
     });
     document.querySelector('.nav-links').appendChild(logoutBtn);
 
@@ -546,7 +559,10 @@ function handleDeleteReport() {
     document.getElementById('reports-auth-error').style.display = 'none';
 
     reportsAuthCallback = async () => {
-        if (confirm(`Are you sure you want to PERMANENTLY delete the report for ${currentViewingReportDate}?`)) {
+        showConfirmModal(
+            'Delete Report',
+            `Are you sure you want to PERMANENTLY delete the report for ${currentViewingReportDate}? This cannot be undone.`,
+            async () => {
             // Check if it's archived
             if (finalizedReports[currentViewingReportDate]) {
                 const startDate = `${currentViewingReportDate}T00:00:00.000Z`;
@@ -583,7 +599,7 @@ function handleDeleteReport() {
             } else {
                 showToast('Cannot delete active business day report. Generate report first.', 'warning');
             }
-        }
+        });
     };
 
     showModal('modal-reports-auth');
@@ -610,40 +626,34 @@ async function handleGenerateReport() {
         return;
     }
 
-    if (confirm('GENERATE REPORT: This will finalize all current stock movements into the Report Folder and RESET the Business Day history. Proceed?')) {
-        const { error } = await supabase
-            .from('history')
-            .update({ finalized: true })
-            .eq('finalized', false);
+    showConfirmModal(
+        'Generate Report',
+        'This will finalize all current stock movements into the Report Folder and RESET the Business Day history. Proceed?',
+        async () => {
+            const { error } = await supabase
+                .from('history')
+                .update({ finalized: true })
+                .eq('finalized', false);
 
-        if (error) {
-            showToast('Database error: ' + error.message, 'danger');
-            return;
-        }
-
-        // Group current history by date
-        history.forEach(log => {
-            const d = new Date(log.timestamp);
-            const dateStr = d.toISOString().split('T')[0];
-
-            if (!finalizedReports[dateStr]) {
-                finalizedReports[dateStr] = [];
+            if (error) {
+                showToast('Database error: ' + error.message, 'danger');
+                return;
             }
-            finalizedReports[dateStr].push(log);
-        });
 
-        // Reset history
-        history = [];
-        saveData();
+            // Reset local history and reload everything fresh from DB
+            // This prevents double-counting in reports
+            history = [];
+            finalizedReports = {};
 
-        renderFullHistory();
-        updateDashboardStats();
-        renderLowStockAlerts();
+            await loadDataFromSupabase();
 
-        showToast('Report generated and business day reset!', 'success');
+            renderFullHistory();
+            updateDashboardStats();
+            renderLowStockAlerts();
 
-        // Success message is enough
-    }
+            showToast('Report generated and business day reset!', 'success');
+        }
+    );
 }
 
 function renderReportsList() {
@@ -792,10 +802,51 @@ function showModal(id) {
 
 function hideModal(id) {
     document.getElementById(id).style.display = 'none';
-    if (html5QrCode) {
-        html5QrCode.stop();
+    if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(() => {});
         document.getElementById('scanner-container').style.display = 'none';
+        html5QrCode = null;
     }
+}
+
+// --- Custom Confirm Modal ---
+function showConfirmModal(title, message, onConfirm) {
+    let overlay = document.getElementById('custom-confirm-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'custom-confirm-overlay';
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal" style="max-width: 420px;">
+                <div class="modal-header">
+                    <h3 id="confirm-modal-title"></h3>
+                </div>
+                <div class="modal-body">
+                    <p id="confirm-modal-message" style="color: var(--text-secondary); line-height: 1.6;"></p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="confirm-modal-cancel">Cancel</button>
+                    <button class="btn btn-primary" id="confirm-modal-ok">Confirm</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+    }
+    document.getElementById('confirm-modal-title').textContent = title;
+    document.getElementById('confirm-modal-message').textContent = message;
+    overlay.style.display = 'flex';
+
+    const okBtn = document.getElementById('confirm-modal-ok');
+    const cancelBtn = document.getElementById('confirm-modal-cancel');
+
+    const cleanup = () => { overlay.style.display = 'none'; };
+    const newOk = okBtn.cloneNode(true);
+    const newCancel = cancelBtn.cloneNode(true);
+    okBtn.parentNode.replaceChild(newOk, okBtn);
+    cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+
+    newOk.addEventListener('click', () => { cleanup(); onConfirm(); });
+    newCancel.addEventListener('click', cleanup);
 }
 
 // --- Product Logic ---
@@ -868,6 +919,9 @@ function openAdjustmentModal(product) {
     document.getElementById('adjustment-product-sku').textContent = `SKU: ${product.sku}`;
     document.getElementById('adjustment-qty').value = 1;
     document.getElementById('adjustment-note').value = '';
+    // Always reset type buttons to 'inward' when opening modal
+    document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.type-btn[data-type="inward"]').classList.add('active');
     showModal('modal-adjustment');
 }
 
@@ -926,12 +980,15 @@ async function handleSaveAdjustment() {
         .insert(historyLog);
 
     if (histError) {
+        // History insert failed - roll back the stock update in DB
         showToast('Database error (history log): ' + histError.message, 'danger');
+        await supabase.from('products').update({ stock: oldStock }).eq('barcode', product.sku);
+        return;
     }
 
     product.stock = newStock;
 
-    // Log to history locally
+    // Add to local history array (single source - matches DB)
     history.push({
         timestamp: historyLog.timestamp,
         productSku: product.sku,
@@ -993,8 +1050,50 @@ function handleBarcodeInput(sku) {
 }
 
 function openQuickScan() {
-    const sku = prompt('Please scan or enter Barcode/SKU:');
-    if (sku) handleBarcodeInput(sku);
+    let overlay = document.getElementById('quick-scan-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'quick-scan-overlay';
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+            <div class="modal" style="max-width: 380px;">
+                <div class="modal-header">
+                    <h3>Quick Scan / Lookup</h3>
+                    <button class="btn btn-ghost" id="close-quick-scan"><i data-lucide="x"></i></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Scan Barcode or Enter SKU</label>
+                        <input type="text" class="form-control" id="quick-scan-input"
+                            placeholder="Scan or type SKU here..." autocomplete="off">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="cancel-quick-scan">Cancel</button>
+                    <button class="btn btn-primary" id="submit-quick-scan">Look Up</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        document.getElementById('close-quick-scan').addEventListener('click', () => { overlay.style.display = 'none'; });
+        document.getElementById('cancel-quick-scan').addEventListener('click', () => { overlay.style.display = 'none'; });
+        document.getElementById('submit-quick-scan').addEventListener('click', () => {
+            const sku = document.getElementById('quick-scan-input').value.trim();
+            overlay.style.display = 'none';
+            if (sku) handleBarcodeInput(sku);
+        });
+        document.getElementById('quick-scan-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const sku = document.getElementById('quick-scan-input').value.trim();
+                overlay.style.display = 'none';
+                if (sku) handleBarcodeInput(sku);
+            }
+        });
+    }
+    overlay.style.display = 'flex';
+    document.getElementById('quick-scan-input').value = '';
+    setTimeout(() => document.getElementById('quick-scan-input').focus(), 100);
+    initLucide();
 }
 
 function startCameraScanner(targetId) {
