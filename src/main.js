@@ -3,6 +3,8 @@
  * Focused on efficient stock management and premium UI interaction.
  */
 
+import { supabase } from './supabase.js';
+
 // --- State Management ---
 let inventory = JSON.parse(localStorage.getItem('tw_inventory')) || [];
 let history = JSON.parse(localStorage.getItem('tw_history')) || [];
@@ -16,12 +18,8 @@ let reportsAuthCallback = null;
 document.addEventListener('DOMContentLoaded', () => {
     initLucide();
     
-    // Check session
-    if (localStorage.getItem('tw_session') === 'active') {
-        showApp();
-    } else {
-        setupLogin();
-    }
+    // Always require login before entering the main page
+    setupLogin();
 });
 
 function setupLogin() {
@@ -48,15 +46,110 @@ function handleLogin() {
     }
 }
 
-function showApp() {
+async function showApp() {
     document.getElementById('login-screen').style.display = 'none';
     document.querySelector('.app-container').style.display = 'flex';
+    
+    setupEventListeners();
+    setupGlobalBarcodeListener();
+    
+    await loadDataFromSupabase();
     
     updateDashboardStats();
     renderInventoryTable();
     renderLowStockAlerts();
-    setupEventListeners();
-    setupGlobalBarcodeListener();
+}
+
+function updateCloudStatus(online) {
+    const dot = document.getElementById('cloud-status-dot');
+    if (dot) {
+        if (online) {
+            dot.className = 'status-dot online';
+            dot.title = 'Connected to Supabase';
+        } else {
+            dot.className = 'status-dot offline';
+            dot.title = 'Disconnected from Supabase';
+        }
+    }
+}
+
+async function loadDataFromSupabase() {
+    showToast('Syncing with Supabase...', 'info');
+    try {
+        // 1. Fetch products
+        const { data: dbProducts, error: prodError } = await supabase
+            .from('products')
+            .select('*')
+            .order('name', { ascending: true });
+            
+        if (prodError) {
+            showToast('Error loading products: ' + prodError.message, 'danger');
+            updateCloudStatus(false);
+            return;
+        }
+        
+        inventory = dbProducts.map(p => ({
+            name: p.name,
+            sku: p.sku,
+            category: p.category,
+            price: p.price,
+            stock: p.stock
+        }));
+
+        // 2. Fetch history
+        const { data: dbHistory, error: histError } = await supabase
+            .from('history')
+            .select('*')
+            .order('timestamp', { ascending: true });
+
+        if (histError) {
+            showToast('Error loading history: ' + histError.message, 'danger');
+            updateCloudStatus(false);
+            return;
+        }
+
+        // Active history is where finalized = false
+        history = dbHistory
+            .filter(h => !h.finalized)
+            .map(h => ({
+                timestamp: h.timestamp,
+                productSku: h.product_sku,
+                productName: h.product_name,
+                type: h.type,
+                quantity: h.quantity,
+                oldBalance: h.old_balance,
+                newBalance: h.new_balance,
+                note: h.note
+            }));
+
+        // Finalized reports is reconstructed from finalized = true
+        finalizedReports = {};
+        dbHistory
+            .filter(h => h.finalized)
+            .forEach(h => {
+                const dateStr = new Date(h.timestamp).toISOString().split('T')[0];
+                if (!finalizedReports[dateStr]) {
+                    finalizedReports[dateStr] = [];
+                }
+                finalizedReports[dateStr].push({
+                    timestamp: h.timestamp,
+                    productSku: h.product_sku,
+                    productName: h.product_name,
+                    type: h.type,
+                    quantity: h.quantity,
+                    oldBalance: h.old_balance,
+                    newBalance: h.new_balance,
+                    note: h.note
+                });
+            });
+
+        showToast('Cloud database synchronized!', 'success');
+        updateCloudStatus(true);
+    } catch (err) {
+        console.error(err);
+        showToast('Unexpected synchronization error', 'danger');
+        updateCloudStatus(false);
+    }
 }
 
 function initLucide() {
@@ -242,8 +335,18 @@ function setupEventListeners() {
     });
 
     // History Actions
-    document.getElementById('btn-clear-history').addEventListener('click', () => {
+    document.getElementById('btn-clear-history').addEventListener('click', async () => {
         if (confirm('Are you sure you want to clear all movement history? Inventory levels will NOT be affected.')) {
+            const { error } = await supabase
+                .from('history')
+                .delete()
+                .eq('finalized', false);
+                
+            if (error) {
+                showToast('Database error: ' + error.message, 'danger');
+                return;
+            }
+            
             history = [];
             saveData();
             renderFullHistory();
@@ -282,7 +385,7 @@ function setupEventListeners() {
     tableBodies.forEach(bodyId => {
         const body = document.getElementById(bodyId);
         if (body) {
-            body.addEventListener('click', (e) => {
+            body.addEventListener('click', async (e) => {
                 const btn = e.target.closest('button');
                 if (!btn) return;
 
@@ -295,6 +398,16 @@ function setupEventListeners() {
                     openEditProductModal(product);
                 } else if (btn.classList.contains('btn-delete')) {
                     if (confirm(`Are you sure you want to delete ${product.name}?`)) {
+                        const { error } = await supabase
+                            .from('products')
+                            .delete()
+                            .eq('sku', sku);
+                            
+                        if (error) {
+                            showToast('Database error: ' + error.message, 'danger');
+                            return;
+                        }
+                        
                         inventory = inventory.filter(p => p.sku !== sku);
                         saveData();
                         renderInventoryTable();
@@ -324,8 +437,23 @@ function setupEventListeners() {
     document.getElementById('cancel-reports-auth').addEventListener('click', () => hideModal('modal-reports-auth'));
 
     // Clear Data
-    document.getElementById('btn-clear-data').addEventListener('click', () => {
+    document.getElementById('btn-clear-data').addEventListener('click', async () => {
         if (confirm('CRITICAL: This will delete ALL products and history. Proceed?')) {
+            const { error: histError } = await supabase
+                .from('history')
+                .delete()
+                .neq('product_name', '');
+                
+            const { error: prodError } = await supabase
+                .from('products')
+                .delete()
+                .neq('sku', '');
+                
+            if (histError || prodError) {
+                showToast('Database error: ' + (histError?.message || prodError?.message), 'danger');
+                return;
+            }
+
             inventory = [];
             history = [];
             saveData();
@@ -413,10 +541,25 @@ function handleDeleteReport() {
     document.getElementById('reports-pass-input').value = '';
     document.getElementById('reports-auth-error').style.display = 'none';
     
-    reportsAuthCallback = () => {
+    reportsAuthCallback = async () => {
         if (confirm(`Are you sure you want to PERMANENTLY delete the report for ${currentViewingReportDate}?`)) {
             // Check if it's archived
             if (finalizedReports[currentViewingReportDate]) {
+                const startDate = `${currentViewingReportDate}T00:00:00.000Z`;
+                const endDate = `${currentViewingReportDate}T23:59:59.999Z`;
+                
+                const { error } = await supabase
+                    .from('history')
+                    .delete()
+                    .eq('finalized', true)
+                    .gte('timestamp', startDate)
+                    .lte('timestamp', endDate);
+                    
+                if (error) {
+                    showToast('Database error: ' + error.message, 'danger');
+                    return;
+                }
+
                 delete finalizedReports[currentViewingReportDate];
                 saveData();
                 showToast(`Report for ${currentViewingReportDate} deleted`, 'success');
@@ -457,13 +600,23 @@ function submitReportsAuth() {
     }
 }
 
-function handleGenerateReport() {
+async function handleGenerateReport() {
     if (history.length === 0) {
         showToast('No active history to generate report', 'info');
         return;
     }
 
     if (confirm('GENERATE REPORT: This will finalize all current stock movements into the Report Folder and RESET the Business Day history. Proceed?')) {
+        const { error } = await supabase
+            .from('history')
+            .update({ finalized: true })
+            .eq('finalized', false);
+            
+        if (error) {
+            showToast('Database error: ' + error.message, 'danger');
+            return;
+        }
+
         // Group current history by date
         history.forEach(log => {
             const d = new Date(log.timestamp);
@@ -642,7 +795,7 @@ function hideModal(id) {
 }
 
 // --- Product Logic ---
-function handleSaveProduct() {
+async function handleSaveProduct() {
     const name = document.getElementById('prod-name').value;
     const sku = document.getElementById('prod-sku').value;
     const category = document.getElementById('prod-category').value;
@@ -655,14 +808,34 @@ function handleSaveProduct() {
     }
 
     const existingIndex = inventory.findIndex(p => p.sku === sku);
+    const productData = { sku, name, category, price, stock };
+    
+    let dbError;
+    if (existingIndex > -1) {
+        // Update in Supabase
+        const { error } = await supabase
+            .from('products')
+            .update({ name, category, price, stock })
+            .eq('sku', sku);
+        dbError = error;
+    } else {
+        // Insert in Supabase
+        const { error } = await supabase
+            .from('products')
+            .insert(productData);
+        dbError = error;
+    }
+    
+    if (dbError) {
+        showToast('Database error: ' + dbError.message, 'danger');
+        return;
+    }
 
     if (existingIndex > -1) {
-        // Update
-        inventory[existingIndex] = { ...inventory[existingIndex], name, category, price, stock };
+        inventory[existingIndex] = productData;
         showToast('Product updated successfully', 'success');
     } else {
-        // Create
-        inventory.push({ name, sku, category, price, stock });
+        inventory.push(productData);
         showToast('New product added', 'success');
     }
 
@@ -693,7 +866,7 @@ function openAdjustmentModal(product) {
     showModal('modal-adjustment');
 }
 
-function handleSaveAdjustment() {
+async function handleSaveAdjustment() {
     if (!currentProductForAdjustment) return;
 
     const qty = parseInt(document.getElementById('adjustment-qty').value);
@@ -719,11 +892,43 @@ function handleSaveAdjustment() {
         newStock -= qty;
     }
 
+    // 1. Update product stock in Supabase
+    const { error: prodError } = await supabase
+        .from('products')
+        .update({ stock: newStock })
+        .eq('sku', product.sku);
+        
+    if (prodError) {
+        showToast('Database error (stock update): ' + prodError.message, 'danger');
+        return;
+    }
+    
+    // 2. Insert history log in Supabase
+    const historyLog = {
+        timestamp: new Date().toISOString(),
+        product_sku: product.sku,
+        product_name: product.name,
+        type: type,
+        quantity: qty,
+        old_balance: oldStock,
+        new_balance: newStock,
+        note: note,
+        finalized: false
+    };
+    
+    const { error: histError } = await supabase
+        .from('history')
+        .insert(historyLog);
+        
+    if (histError) {
+        showToast('Database error (history log): ' + histError.message, 'danger');
+    }
+
     product.stock = newStock;
 
-    // Log to history
+    // Log to history locally
     history.push({
-        timestamp: new Date().toISOString(),
+        timestamp: historyLog.timestamp,
         productSku: product.sku,
         productName: product.name,
         type: type,
