@@ -393,6 +393,12 @@ function setupEventListeners() {
     document.getElementById('cancel-adjustment').addEventListener('click', () => hideModal('modal-adjustment'));
     document.getElementById('save-adjustment').addEventListener('click', handleSaveAdjustment);
 
+    // Global Camera Modal
+    const closeCamBtn = document.getElementById('close-camera-modal');
+    if (closeCamBtn) {
+        closeCamBtn.addEventListener('click', () => hideModal('modal-camera'));
+    }
+
     document.querySelectorAll('.type-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
@@ -627,43 +633,43 @@ function handleDeleteReport() {
             'Delete Report',
             `Are you sure you want to PERMANENTLY delete the report for ${currentViewingReportDate}? This cannot be undone.`,
             async () => {
-            // Check if it's archived
-            if (finalizedReports[currentViewingReportDate]) {
-                const startDate = `${currentViewingReportDate}T00:00:00.000Z`;
-                const endDate = `${currentViewingReportDate}T23:59:59.999Z`;
+                // Check if it's archived
+                if (finalizedReports[currentViewingReportDate]) {
+                    const startDate = `${currentViewingReportDate}T00:00:00.000Z`;
+                    const endDate = `${currentViewingReportDate}T23:59:59.999Z`;
 
-                const { error } = await supabase
-                    .from('history')
-                    .delete()
-                    .eq('finalized', true)
-                    .gte('timestamp', startDate)
-                    .lte('timestamp', endDate);
+                    const { error } = await supabase
+                        .from('history')
+                        .delete()
+                        .eq('finalized', true)
+                        .gte('timestamp', startDate)
+                        .lte('timestamp', endDate);
 
-                if (error) {
-                    showToast('Database error: ' + error.message, 'danger');
-                    return;
-                }
+                    if (error) {
+                        showToast('Database error: ' + error.message, 'danger');
+                        return;
+                    }
 
-                delete finalizedReports[currentViewingReportDate];
-                saveData();
-                showToast(`Report for ${currentViewingReportDate} deleted`, 'success');
-                renderReportsList();
+                    delete finalizedReports[currentViewingReportDate];
+                    saveData();
+                    showToast(`Report for ${currentViewingReportDate} deleted`, 'success');
+                    renderReportsList();
 
-                // Clear view
-                document.getElementById('report-content').innerHTML = `
+                    // Clear view
+                    document.getElementById('report-content').innerHTML = `
                     <div class="empty-state" style="text-align: center; padding: 40px;">
                         <i data-lucide="file-text" style="width: 48px; height: 48px; color: var(--text-muted); opacity: 0.5; margin-bottom: 12px;"></i>
                         <p style="color: var(--text-muted);">Choose a date from the left to view detailed stock movements.</p>
                     </div>
                 `;
-                document.getElementById('report-view-title').textContent = 'Select a report';
-                document.getElementById('btn-print-report').style.display = 'none';
-                document.getElementById('btn-delete-report').style.display = 'none';
-                initLucide();
-            } else {
-                showToast('Cannot delete active business day report. Generate report first.', 'warning');
-            }
-        });
+                    document.getElementById('report-view-title').textContent = 'Select a report';
+                    document.getElementById('btn-print-report').style.display = 'none';
+                    document.getElementById('btn-delete-report').style.display = 'none';
+                    initLucide();
+                } else {
+                    showToast('Cannot delete active business day report. Generate report first.', 'warning');
+                }
+            });
     };
 
     showModal('modal-reports-auth');
@@ -866,10 +872,8 @@ function showModal(id) {
 
 function hideModal(id) {
     document.getElementById(id).style.display = 'none';
-    if (html5QrCode && html5QrCode.isScanning) {
-        html5QrCode.stop().catch(() => {});
-        document.getElementById('scanner-container').style.display = 'none';
-        html5QrCode = null;
+    if (id === 'modal-camera' && html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(() => { });
     }
 }
 
@@ -1128,8 +1132,11 @@ function openQuickScan() {
                 <div class="modal-body">
                     <div class="form-group">
                         <label>Scan Barcode or Enter SKU</label>
-                        <input type="text" class="form-control" id="quick-scan-input"
-                            placeholder="Scan or type SKU here..." autocomplete="off">
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" class="form-control" id="quick-scan-input"
+                                placeholder="Scan or type SKU here..." autocomplete="off">
+                            <button type="button" class="btn btn-secondary" id="btn-quick-scan-camera"><i data-lucide="camera"></i></button>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -1153,6 +1160,9 @@ function openQuickScan() {
                 if (sku) handleBarcodeInput(sku);
             }
         });
+        document.getElementById('btn-quick-scan-camera').addEventListener('click', () => {
+            startCameraScanner('quick-scan-input');
+        });
     }
     overlay.style.display = 'flex';
     document.getElementById('quick-scan-input').value = '';
@@ -1161,26 +1171,81 @@ function openQuickScan() {
 }
 
 function startCameraScanner(targetId) {
-    document.getElementById('scanner-container').style.display = 'block';
-    html5QrCode = new Html5Qrcode("scanner-container");
+    const modalCamera = document.getElementById('modal-camera');
+    const container = document.getElementById('global-scanner-container');
+    const fallback = document.getElementById('scanner-fallback');
+    
+    modalCamera.style.display = 'flex';
+    container.style.display = 'block';
+    fallback.style.display = 'none';
+    
+    // Clear any previous fallback listeners by cloning
+    const oldUploadBtn = document.getElementById('btn-fallback-upload');
+    const newUploadBtn = oldUploadBtn.cloneNode(true);
+    oldUploadBtn.parentNode.replaceChild(newUploadBtn, oldUploadBtn);
+    
+    const fileInput = document.getElementById('fallback-file-input');
+    const newFileInput = fileInput.cloneNode(true);
+    fileInput.parentNode.replaceChild(newFileInput, fileInput);
 
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-
-    html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        (decodedText) => {
-            document.getElementById(targetId).value = decodedText;
-            html5QrCode.stop();
-            document.getElementById('scanner-container').style.display = 'none';
-            showToast('Barcode scanned successfully', 'success');
-        },
-        (errorMessage) => {
-            // silent fail for frame capture
+    try {
+        if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode("global-scanner-container");
         }
-    ).catch(err => {
+        
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+        html5QrCode.start(
+            { facingMode: "environment" },
+            config,
+            (decodedText) => {
+                document.getElementById(targetId).value = decodedText;
+                hideModal('modal-camera');
+                showToast('Barcode scanned successfully', 'success');
+                
+                if (targetId === 'quick-scan-input') {
+                    document.getElementById('quick-scan-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+                }
+            },
+            (errorMessage) => {
+                // silent fail for frame capture
+            }
+        ).catch(err => {
+            console.error(err);
+            showFallbackUI(targetId);
+        });
+    } catch (err) {
         console.error(err);
-        showToast('Camera access denied', 'danger');
+        showFallbackUI(targetId);
+    }
+}
+
+function showFallbackUI(targetId) {
+    document.getElementById('global-scanner-container').style.display = 'none';
+    document.getElementById('scanner-fallback').style.display = 'block';
+    
+    document.getElementById('btn-fallback-upload').addEventListener('click', () => {
+        document.getElementById('fallback-file-input').click();
+    });
+    
+    document.getElementById('fallback-file-input').addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+            const file = e.target.files[0];
+            if (!html5QrCode) html5QrCode = new Html5Qrcode("global-scanner-container");
+            html5QrCode.scanFile(file, true)
+                .then(decodedText => {
+                    document.getElementById(targetId).value = decodedText;
+                    hideModal('modal-camera');
+                    showToast('Barcode scanned from image', 'success');
+                    if (targetId === 'quick-scan-input') {
+                        document.getElementById('quick-scan-input').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
+                    }
+                })
+                .catch(err => {
+                    showToast('Could not read barcode from image', 'danger');
+                });
+            e.target.value = ''; // Reset input
+        }
     });
 }
 

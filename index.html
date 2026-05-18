@@ -1,13 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Taruchhaya Wholesale | Inventory Management</title>
     <link rel="stylesheet" href="/src/style.css">
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
+
 <body>
     <!-- Login Screen -->
     <div id="login-screen" class="login-overlay">
@@ -28,14 +30,18 @@
                     <label>Password</label>
                     <input type="password" id="login-password" class="form-control" placeholder="Enter password">
                 </div>
-                <button class="btn btn-primary btn-block" id="btn-login" style="width: 100%; margin-top: 12px; height: 48px;">
+                <button class="btn btn-primary btn-block" id="btn-login"
+                    style="width: 100%; margin-top: 12px; height: 48px;">
                     Sign In
                 </button>
-                <div id="login-error" class="error-text" style="display: none; color: var(--danger); font-size: 0.875rem; text-align: center; margin-top: 16px;">
+                <div id="login-error" class="error-text"
+                    style="display: none; color: var(--danger); font-size: 0.875rem; text-align: center; margin-top: 16px;">
                     Invalid username or password
                 </div>
-                <div style="text-align: center; margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 20px;">
-                    <p style="font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">Developed with ❤️ by Swapnil Sarkar.</p>
+                <div
+                    style="text-align: center; margin-top: 32px; border-top: 1px solid var(--border-color); padding-top: 20px;">
+                    <p style="font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">Developed with ❤️ by
+                        Swapnil Sarkar.</p>
                 </div>
             </div>
         </div>
@@ -53,7 +59,8 @@
                         <span class="logo-text">Taruchhaya</span>
                         <span id="cloud-status-dot" class="status-dot offline" title="Connecting to Supabase..."></span>
                     </div>
-                    <div id="current-date" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">Saturday, 16 May 2026</div>
+                    <div id="current-date" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">
+                        Saturday, 16 May 2026</div>
                 </div>
             </div>
             <nav class="nav-links">
@@ -104,8 +111,10 @@
                 </div>
                 <div class="header-actions">
                     <div class="search-bar" style="position: relative;">
-                        <i data-lucide="search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; color: var(--text-muted);"></i>
-                        <input type="text" class="form-control" id="global-search" placeholder="Search inventory..." style="padding-left: 40px; width: 300px;">
+                        <i data-lucide="search"
+                            style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 16px; color: var(--text-muted);"></i>
+                        <input type="text" class="form-control" id="global-search" placeholder="Search inventory..."
+                            style="padding-left: 40px; width: 300px;">
                     </div>
                     <button class="btn btn-primary" id="btn-scan">
                         <i data-lucide="scan-barcode"></i>
@@ -256,7 +265,8 @@
                         <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 16px;">
                             Clear all inventory data and history. This action cannot be undone.
                         </p>
-                        <button class="btn btn-secondary" id="btn-clear-data" style="color: var(--danger); border-color: var(--danger-light);">
+                        <button class="btn btn-secondary" id="btn-clear-data"
+                            style="color: var(--danger); border-color: var(--danger-light);">
                             <i data-lucide="trash-2"></i>
                             Clear All Data
                         </button>
@@ -282,15 +292,18 @@
                                 <button class="btn btn-secondary btn-sm" id="btn-print-report" style="display: none;">
                                     <i data-lucide="printer"></i> Print
                                 </button>
-                                <button class="btn btn-ghost btn-sm" id="btn-delete-report" style="display: none; color: var(--danger);">
+                                <button class="btn btn-ghost btn-sm" id="btn-delete-report"
+                                    style="display: none; color: var(--danger);">
                                     <i data-lucide="trash-2"></i> Delete
                                 </button>
                             </div>
                         </div>
                         <div id="report-content" class="report-content">
                             <div class="empty-state" style="text-align: center; padding: 40px;">
-                                <i data-lucide="file-text" style="width: 48px; height: 48px; color: var(--text-muted); opacity: 0.5; margin-bottom: 12px;"></i>
-                                <p style="color: var(--text-muted);">Choose a date from the left to view detailed stock movements.</p>
+                                <i data-lucide="file-text"
+                                    style="width: 48px; height: 48px; color: var(--text-muted); opacity: 0.5; margin-bottom: 12px;"></i>
+                                <p style="color: var(--text-muted);">Choose a date from the left to view detailed stock
+                                    movements.</p>
                             </div>
                         </div>
                     </div>
@@ -308,10 +321,10 @@
                 <button class="btn btn-ghost" id="close-adjustment"><i data-lucide="x"></i></button>
             </div>
             <div class="modal-body">
-                <div id="scanner-container"></div>
                 <div class="form-group">
                     <label>Product</label>
-                    <div id="adjustment-product-name" style="font-weight: 600; font-size: 1.1rem; margin-bottom: 4px;">--</div>
+                    <div id="adjustment-product-name" style="font-weight: 600; font-size: 1.1rem; margin-bottom: 4px;">
+                        --</div>
                     <div id="adjustment-product-sku" style="color: var(--text-muted); font-family: monospace;">--</div>
                 </div>
                 <div class="adjustment-type">
@@ -330,7 +343,8 @@
                 </div>
                 <div class="form-group">
                     <label>Reason / Note (Optional)</label>
-                    <input type="text" class="form-control" id="adjustment-note" placeholder="e.g. New Batch, Sale, Return">
+                    <input type="text" class="form-control" id="adjustment-note"
+                        placeholder="e.g. New Batch, Sale, Return">
                 </div>
             </div>
             <div class="modal-footer">
@@ -351,13 +365,16 @@
                 <form id="product-form">
                     <div class="form-group">
                         <label>Product Name</label>
-                        <input type="text" class="form-control" id="prod-name" required placeholder="Enter product name">
+                        <input type="text" class="form-control" id="prod-name" required
+                            placeholder="Enter product name">
                     </div>
                     <div class="form-group">
                         <label>SKU / Barcode</label>
                         <div style="display: flex; gap: 8px;">
-                            <input type="text" class="form-control" id="prod-sku" required placeholder="Scan or enter SKU">
-                            <button type="button" class="btn btn-secondary" id="btn-scan-sku"><i data-lucide="camera"></i></button>
+                            <input type="text" class="form-control" id="prod-sku" required
+                                placeholder="Scan or enter SKU">
+                            <button type="button" class="btn btn-secondary" id="btn-scan-sku"><i
+                                    data-lucide="camera"></i></button>
                         </div>
                     </div>
                     <div class="form-group">
@@ -396,22 +413,49 @@
             </div>
             <div class="modal-body">
                 <div style="text-align: center; margin-bottom: 24px;">
-                    <div class="logo-icon" style="width: 48px; height: 48px; margin: 0 auto 16px; background: var(--warning-light); color: var(--warning);">
+                    <div class="logo-icon"
+                        style="width: 48px; height: 48px; margin: 0 auto 16px; background: var(--warning-light); color: var(--warning);">
                         <i data-lucide="lock"></i>
                     </div>
-                    <p style="color: var(--text-muted); font-size: 0.875rem;">Please enter your owner password to access daily reports.</p>
+                    <p style="color: var(--text-muted); font-size: 0.875rem;">Please enter your owner password to access
+                        daily reports.</p>
                 </div>
                 <div class="form-group">
                     <label>Password</label>
                     <input type="password" class="form-control" id="reports-pass-input" placeholder="••••">
                 </div>
-                <div id="reports-auth-error" style="display: none; color: var(--danger); font-size: 0.875rem; text-align: center; margin-top: -12px; margin-bottom: 12px;">
+                <div id="reports-auth-error"
+                    style="display: none; color: var(--danger); font-size: 0.875rem; text-align: center; margin-top: -12px; margin-bottom: 12px;">
                     Incorrect password
                 </div>
             </div>
             <div class="modal-footer" style="display: flex; flex-direction: column; gap: 8px;">
-                <button class="btn btn-primary" id="btn-submit-reports-auth" style="width: 100%;">Access Reports</button>
+                <button class="btn btn-primary" id="btn-submit-reports-auth" style="width: 100%;">Access
+                    Reports</button>
                 <button class="btn btn-ghost" id="cancel-reports-auth" style="width: 100%;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Camera Modal -->
+    <div class="modal-overlay" id="modal-camera" style="z-index: 3000;">
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Scan Barcode</h3>
+                <button class="btn btn-ghost" id="close-camera-modal"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body">
+                <div id="global-scanner-container" style="width: 100%; min-height: 250px; background: #000; border-radius: var(--radius-md); overflow: hidden; margin-bottom: 16px;"></div>
+                <div id="scanner-fallback" style="display: none;">
+                    <div style="padding: 20px; text-align: center; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                        <i data-lucide="camera-off" style="width: 32px; height: 32px; color: var(--warning); margin-bottom: 12px; display: inline-block;"></i>
+                        <p style="color: var(--text-muted); font-size: 0.875rem; margin-bottom: 16px;">Camera access restricted or unsupported. Please upload an image of the barcode.</p>
+                        <input type="file" id="fallback-file-input" accept="image/*" capture="environment" style="display: none;">
+                        <button type="button" class="btn btn-primary" id="btn-fallback-upload" style="width: 100%;">
+                            <i data-lucide="upload"></i> Upload Image
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -447,4 +491,5 @@
     <!-- Barcode Library -->
     <script src="https://unpkg.com/html5-qrcode"></script>
 </body>
+
 </html>
