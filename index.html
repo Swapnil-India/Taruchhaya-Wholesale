@@ -89,6 +89,9 @@
             </div>
         </aside>
 
+        <!-- Mobile Sidebar Overlay -->
+        <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
         <!-- Main Content -->
         <main class="main-content">
             <!-- Top Header -->
@@ -415,6 +418,30 @@
 
     <!-- Toast Container -->
     <div class="toast-container" id="toast-container"></div>
+
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+        <button class="mobile-nav-item active" data-page="dashboard" id="mob-nav-dashboard">
+            <i data-lucide="layout-dashboard"></i>
+            <span>Dashboard</span>
+        </button>
+        <button class="mobile-nav-item" data-page="inventory" id="mob-nav-inventory">
+            <i data-lucide="boxes"></i>
+            <span>Inventory</span>
+        </button>
+        <button class="mobile-nav-item" data-page="history" id="mob-nav-history">
+            <i data-lucide="history"></i>
+            <span>History</span>
+        </button>
+        <button class="mobile-nav-item" id="mob-nav-scan">
+            <i data-lucide="scan-barcode"></i>
+            <span>Scan</span>
+        </button>
+        <button class="mobile-nav-item" data-page="settings" id="mob-nav-settings">
+            <i data-lucide="settings"></i>
+            <span>Settings</span>
+        </button>
+    </nav>
 
     <script type="module" src="/src/main.js"></script>
     <!-- Barcode Library -->

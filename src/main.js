@@ -194,18 +194,23 @@ function renderInventoryTable(filter = '') {
         item.sku.toLowerCase().includes(filter.toLowerCase())
     );
 
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">No products found</td></tr>';
+        return;
+    }
+
     filtered.forEach(item => {
         const tr = document.createElement('tr');
         const statusClass = item.stock < 10 ? (item.stock == 0 ? 'stock-out' : 'stock-low') : 'stock-in';
         const statusText = item.stock < 10 ? (item.stock == 0 ? 'Out of Stock' : 'Low Stock') : 'In Stock';
 
         tr.innerHTML = `
-            <td><div class="item-name">${item.name}</div></td>
-            <td><div class="item-sku">${item.sku}</div></td>
-            <td>${item.category}</td>
-            <td style="font-weight: 600;">${item.stock} units</td>
-            <td><span class="stock-badge ${statusClass}">${statusText}</span></td>
-            <td>
+            <td data-label="Product"><div class="item-name">${item.name}</div></td>
+            <td data-label="SKU"><div class="item-sku">${item.sku}</div></td>
+            <td data-label="Category">${item.category}</td>
+            <td data-label="Stock" style="font-weight: 600;">${item.stock} units</td>
+            <td data-label="Status"><span class="stock-badge ${statusClass}">${statusText}</span></td>
+            <td data-label="Actions">
                 <div style="display: flex; gap: 8px;">
                     <button class="btn btn-ghost btn-sm btn-adjust" data-sku="${item.sku}"><i data-lucide="refresh-cw" style="width: 14px;"></i></button>
                     <button class="btn btn-ghost btn-sm btn-edit" data-sku="${item.sku}"><i data-lucide="edit-2" style="width: 14px;"></i></button>
@@ -236,12 +241,12 @@ function renderLowStockAlerts() {
         const statusText = item.stock == 0 ? 'Out of Stock' : 'Critical Low';
 
         tr.innerHTML = `
-            <td><div class="item-name">${item.name}</div></td>
-            <td><div class="item-sku">${item.sku}</div></td>
-            <td>${item.category}</td>
-            <td style="font-weight: 700; color: var(--danger);">${item.stock} units</td>
-            <td><span class="stock-badge ${statusClass}">${statusText}</span></td>
-            <td>
+            <td data-label="Product"><div class="item-name">${item.name}</div></td>
+            <td data-label="SKU"><div class="item-sku">${item.sku}</div></td>
+            <td data-label="Category">${item.category}</td>
+            <td data-label="Stock" style="font-weight: 700; color: var(--danger);">${item.stock} units</td>
+            <td data-label="Status"><span class="stock-badge ${statusClass}">${statusText}</span></td>
+            <td data-label="Actions">
                 <div style="display: flex; gap: 8px;">
                     <button class="btn btn-ghost btn-sm btn-adjust" data-sku="${item.sku}"><i data-lucide="refresh-cw" style="width: 14px;"></i></button>
                     <button class="btn btn-ghost btn-sm btn-edit" data-sku="${item.sku}"><i data-lucide="edit-2" style="width: 14px;"></i></button>
@@ -273,14 +278,14 @@ function renderFullHistory(filter = '') {
         const typeIcon = log.type === 'inward' ? 'arrow-down-left' : 'arrow-up-right';
 
         tr.innerHTML = `
-            <td style="font-size: 0.8rem; color: var(--text-muted);">${new Date(log.timestamp).toLocaleString()}</td>
-            <td><div class="item-name">${log.productName}</div></td>
-            <td><div class="item-sku">${log.productSku}</div></td>
-            <td><span class="stock-badge ${typeClass}"><i data-lucide="${typeIcon}" style="width: 12px; margin-right: 4px;"></i>${log.type.toUpperCase()}</span></td>
-            <td style="font-weight: 600;">${log.type === 'inward' ? '+' : '-'}${log.quantity}</td>
-            <td>${log.oldBalance}</td>
-            <td>${log.newBalance}</td>
-            <td style="font-style: italic; font-size: 0.8rem;">${log.note || '-'}</td>
+            <td data-label="Time" style="font-size: 0.8rem; color: var(--text-muted);">${new Date(log.timestamp).toLocaleString()}</td>
+            <td data-label="Product"><div class="item-name">${log.productName}</div></td>
+            <td data-label="SKU"><div class="item-sku">${log.productSku}</div></td>
+            <td data-label="Type"><span class="stock-badge ${typeClass}"><i data-lucide="${typeIcon}" style="width: 12px; margin-right: 4px;"></i>${log.type.toUpperCase()}</span></td>
+            <td data-label="Qty" style="font-weight: 600;">${log.type === 'inward' ? '+' : '-'}${log.quantity}</td>
+            <td data-label="Old Bal">${log.oldBalance}</td>
+            <td data-label="New Bal">${log.newBalance}</td>
+            <td data-label="Note" style="font-style: italic; font-size: 0.8rem;">${log.note || '-'}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -294,10 +299,13 @@ function setupEventListeners() {
         item.addEventListener('click', (e) => {
             e.preventDefault();
             const page = item.getAttribute('data-page');
-            showPage(page);
+            if (page) showPage(page);
 
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             item.classList.add('active');
+
+            // Auto-close sidebar on mobile after navigation
+            if (window.innerWidth <= 768) closeSidebar();
         });
     });
 
@@ -313,9 +321,13 @@ function setupEventListeners() {
         handleGenerateReport();
     });
 
-    // Mobile Toggle
+    // Mobile Toggle — also controls overlay
     document.getElementById('menu-toggle').addEventListener('click', () => {
-        document.getElementById('sidebar').classList.toggle('open');
+        toggleSidebar();
+    });
+
+    document.getElementById('sidebar-overlay').addEventListener('click', () => {
+        closeSidebar();
     });
 
     // Global Search
@@ -517,11 +529,63 @@ function setupEventListeners() {
         handleDeleteReport();
     });
 
+    // Mobile Bottom Navigation
+    document.querySelectorAll('#mobile-bottom-nav .mobile-nav-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const page = btn.getAttribute('data-page');
+            if (!page) {
+                // Scan button
+                openQuickScan();
+                return;
+            }
+
+            // Handle Reports page that needs auth
+            if (page === 'reports') {
+                handleReportsAccess();
+                return;
+            }
+
+            showPage(page);
+
+            // Update bottom nav active state
+            document.querySelectorAll('#mobile-bottom-nav .mobile-nav-item').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Sync sidebar active state
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            const sidebarLink = document.querySelector(`.nav-item[data-page="${page}"]`);
+            if (sidebarLink) sidebarLink.classList.add('active');
+        });
+    });
+
     initLucide();
+}
+
+// --- Sidebar Helpers ---
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    const isOpen = sidebar.classList.contains('open');
+    if (isOpen) {
+        closeSidebar();
+    } else {
+        sidebar.classList.add('open');
+        overlay.classList.add('visible');
+        document.body.style.overflow = 'hidden'; // prevent background scroll
+    }
+}
+
+function closeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.remove('open');
+    overlay.classList.remove('visible');
+    document.body.style.overflow = '';
 }
 
 // --- Page Handling ---
 function showPage(pageId) {
+
     document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
     document.getElementById(`page-${pageId}`).style.display = 'block';
     document.getElementById('page-title').textContent = pageId.charAt(0).toUpperCase() + pageId.slice(1);
