@@ -298,6 +298,12 @@ function setupEventListeners() {
     document.querySelectorAll('.nav-item').forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
+            
+            // If it's a popup action button, don't change the page or active tab
+            if (item.id === 'nav-stock-summary' || item.id === 'btn-generate-report') {
+                return;
+            }
+
             const page = item.getAttribute('data-page');
             if (page) showPage(page);
 
@@ -313,6 +319,13 @@ function setupEventListeners() {
     document.getElementById('nav-reports').addEventListener('click', (e) => {
         e.preventDefault();
         handleReportsAccess();
+    });
+
+    // Stock Summary
+    document.getElementById('nav-stock-summary').addEventListener('click', (e) => {
+        e.preventDefault();
+        renderStockListPopup();
+        showModal('modal-stock-list');
     });
 
     // Generate Report
@@ -392,6 +405,10 @@ function setupEventListeners() {
     document.getElementById('close-adjustment').addEventListener('click', () => hideModal('modal-adjustment'));
     document.getElementById('cancel-adjustment').addEventListener('click', () => hideModal('modal-adjustment'));
     document.getElementById('save-adjustment').addEventListener('click', handleSaveAdjustment);
+
+    // Stock List Modal
+    document.getElementById('close-stock-list').addEventListener('click', () => hideModal('modal-stock-list'));
+    document.getElementById('btn-close-stock-list').addEventListener('click', () => hideModal('modal-stock-list'));
 
     // Global Camera Modal
     const closeCamBtn = document.getElementById('close-camera-modal');
@@ -538,6 +555,12 @@ function setupEventListeners() {
     // Mobile Bottom Navigation
     document.querySelectorAll('#mobile-bottom-nav .mobile-nav-item').forEach(btn => {
         btn.addEventListener('click', () => {
+            if (btn.id === 'mob-nav-stock') {
+                renderStockListPopup();
+                showModal('modal-stock-list');
+                return;
+            }
+
             const page = btn.getAttribute('data-page');
             if (!page) {
                 // Scan button
@@ -863,6 +886,33 @@ function renderReport(date) {
     `;
 
     content.innerHTML = html;
+}
+
+function renderStockListPopup() {
+    const container = document.getElementById('stock-list-content');
+    container.innerHTML = '';
+    
+    if (inventory.length === 0) {
+        container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px 0;">No products found</div>';
+        return;
+    }
+    
+    // Sort inventory alphabetically by product name
+    const sortedInventory = [...inventory].sort((a, b) => a.name.localeCompare(b.name));
+    
+    sortedInventory.forEach(item => {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.justifyContent = 'space-between';
+        row.style.padding = '8px 0';
+        row.style.borderBottom = '1px solid var(--border-color)';
+        row.innerHTML = `
+            <span style="font-weight: 500;">${item.name}</span>
+            <span style="color: var(--text-muted); margin: 0 8px;">--</span>
+            <span style="font-weight: 700; color: ${parseInt(item.stock) < 10 ? 'var(--danger)' : 'var(--text-main)'};">${item.stock}</span>
+        `;
+        container.appendChild(row);
+    });
 }
 
 // --- Modal Handling ---

@@ -76,6 +76,10 @@
                     <i data-lucide="history"></i>
                     Stock History
                 </a>
+                <a href="#" class="nav-item" id="nav-stock-summary">
+                    <i data-lucide="clipboard-list"></i>
+                    Stock Summary
+                </a>
                 <a href="#" class="nav-item" data-page="settings">
                     <i data-lucide="settings"></i>
                     Data & Settings
@@ -460,6 +464,24 @@
         </div>
     </div>
 
+    <!-- Stock List Modal -->
+    <div class="modal-overlay" id="modal-stock-list">
+        <div class="modal" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Stock Summary</h3>
+                <button class="btn btn-ghost" id="close-stock-list"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body" style="max-height: 60vh; overflow-y: auto; padding: 20px 24px;">
+                <div id="stock-list-content" style="font-size: 1rem; line-height: 2; color: var(--text-main);">
+                    <!-- Dynamically populated stock list -->
+                </div>
+            </div>
+            <div class="modal-footer" style="padding: 16px 24px;">
+                <button class="btn btn-primary" id="btn-close-stock-list" style="width: 100%; justify-content: center;">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div class="toast-container" id="toast-container"></div>
 
@@ -477,9 +499,9 @@
             <i data-lucide="history"></i>
             <span>History</span>
         </button>
-        <button class="mobile-nav-item" id="mob-nav-scan">
-            <i data-lucide="scan-barcode"></i>
-            <span>Scan</span>
+        <button class="mobile-nav-item" id="mob-nav-stock">
+            <i data-lucide="clipboard-list"></i>
+            <span>Stock</span>
         </button>
         <button class="mobile-nav-item" data-page="settings" id="mob-nav-settings">
             <i data-lucide="settings"></i>
