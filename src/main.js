@@ -54,6 +54,10 @@ async function showApp() {
     setupGlobalBarcodeListener();
 
     await loadDataFromSupabase();
+    await autoGenerateReportIfNeeded();
+
+    // Check every minute if report needs to be generated (e.g. crossing midnight)
+    setInterval(autoGenerateReportIfNeeded, 60000);
 
     updateDashboardStats();
     renderInventoryTable();
@@ -747,6 +751,47 @@ async function handleGenerateReport() {
             showToast('Report generated and business day reset!', 'success');
         }
     );
+}
+
+async function autoGenerateReportIfNeeded() {
+    if (history.length === 0) return;
+
+    const todayStr = getLocalDateStr(new Date());
+
+    const needsAutoGeneration = history.some(log => {
+        const logDateStr = getLocalDateStr(new Date(log.timestamp));
+        return logDateStr < todayStr;
+    });
+
+    if (needsAutoGeneration) {
+        const { error } = await supabase
+            .from('history')
+            .update({ finalized: true })
+            .eq('finalized', false);
+
+        if (error) {
+            console.error('Auto report generation error:', error);
+            return;
+        }
+
+        history = [];
+        finalizedReports = {};
+
+        await loadDataFromSupabase();
+
+        renderFullHistory();
+        updateDashboardStats();
+        renderLowStockAlerts();
+
+        showToast('Report automatically generated for the previous day', 'success');
+    }
+}
+
+function getLocalDateStr(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 function renderReportsList() {
