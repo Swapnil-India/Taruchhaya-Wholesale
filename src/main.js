@@ -100,10 +100,11 @@ async function loadDataFromSupabase() {
             stock: p.stock
         }));
 
-        // 2. Fetch history
+        // 2. Fetch active history (finalized = false)
         const { data: dbHistory, error: histError } = await supabase
             .from('history')
             .select('*')
+            .eq('finalized', false)
             .order('timestamp', { ascending: true });
 
         if (histError) {
@@ -113,39 +114,18 @@ async function loadDataFromSupabase() {
         }
 
         // Active history is where finalized = false
-        history = dbHistory
-            .filter(h => !h.finalized)
-            .map(h => ({
-                timestamp: h.timestamp,
-                productSku: h.product_sku,
-                productName: h.product_name,
-                type: h.type,
-                quantity: h.quantity,
-                oldBalance: h.old_balance,
-                newBalance: h.new_balance,
-                note: h.note
-            }));
+        history = dbHistory.map(h => ({
+            timestamp: h.timestamp,
+            productSku: h.product_sku,
+            productName: h.product_name,
+            type: h.type,
+            quantity: h.quantity,
+            oldBalance: h.old_balance,
+            newBalance: h.new_balance,
+            note: h.note
+        }));
 
-        // Finalized reports is reconstructed from finalized = true
         finalizedReports = {};
-        dbHistory
-            .filter(h => h.finalized)
-            .forEach(h => {
-                const dateStr = new Date(h.timestamp).toISOString().split('T')[0];
-                if (!finalizedReports[dateStr]) {
-                    finalizedReports[dateStr] = [];
-                }
-                finalizedReports[dateStr].push({
-                    timestamp: h.timestamp,
-                    productSku: h.product_sku,
-                    productName: h.product_name,
-                    type: h.type,
-                    quantity: h.quantity,
-                    oldBalance: h.old_balance,
-                    newBalance: h.new_balance,
-                    note: h.note
-                });
-            });
 
         showToast('Cloud database synchronized!', 'success');
         updateCloudStatus(true);
@@ -208,11 +188,13 @@ function renderInventoryTable(filter = '') {
         const statusClass = item.stock < 10 ? (item.stock == 0 ? 'stock-out' : 'stock-low') : 'stock-in';
         const statusText = item.stock < 10 ? (item.stock == 0 ? 'Out of Stock' : 'Low Stock') : 'In Stock';
 
+        const stockColor = parseInt(item.stock) === 0 ? 'var(--danger)' : (parseInt(item.stock) < 10 ? 'var(--text-main)' : 'var(--success)');
+
         tr.innerHTML = `
             <td data-label="Product"><div class="item-name">${item.name}</div></td>
             <td data-label="SKU"><div class="item-sku">${item.sku}</div></td>
             <td data-label="Category">${item.category}</td>
-            <td data-label="Stock" style="font-weight: 600;">${item.stock} units</td>
+            <td data-label="Stock" style="font-weight: 600; color: ${stockColor};">${item.stock} units</td>
             <td data-label="Status"><span class="stock-badge ${statusClass}">${statusText}</span></td>
             <td data-label="Actions">
                 <div style="display: flex; gap: 8px;">
@@ -662,8 +644,9 @@ function handleDeleteReport() {
             async () => {
                 // Check if it's archived
                 if (finalizedReports[currentViewingReportDate]) {
-                    const startDate = `${currentViewingReportDate}T00:00:00.000Z`;
-                    const endDate = `${currentViewingReportDate}T23:59:59.999Z`;
+                    const [year, month, day] = currentViewingReportDate.split('-').map(Number);
+                    const startDate = new Date(year, month - 1, day, 0, 0, 0, 0).toISOString();
+                    const endDate = new Date(year, month - 1, day, 23, 59, 59, 999).toISOString();
 
                     const { error } = await supabase
                         .from('history')
@@ -764,10 +747,14 @@ async function autoGenerateReportIfNeeded() {
     });
 
     if (needsAutoGeneration) {
+        const today = new Date();
+        const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0).toISOString();
+
         const { error } = await supabase
             .from('history')
             .update({ finalized: true })
-            .eq('finalized', false);
+            .eq('finalized', false)
+            .lt('timestamp', startOfToday);
 
         if (error) {
             console.error('Auto report generation error:', error);
@@ -794,44 +781,67 @@ function getLocalDateStr(date) {
     return `${year}-${month}-${day}`;
 }
 
-function renderReportsList() {
+async function renderReportsList() {
     const list = document.getElementById('report-date-list');
-    list.innerHTML = '';
+    list.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">Loading reports...</div>';
 
-    // Get dates from both active history and finalized reports
-    const historyDates = [...new Set(history.map(log => {
-        const d = new Date(log.timestamp);
-        return d.toISOString().split('T')[0];
-    }))];
+    try {
+        const { data, error } = await supabase
+            .from('history')
+            .select('timestamp')
+            .eq('finalized', true)
+            .order('timestamp', { ascending: false });
 
-    const archivedDates = Object.keys(finalizedReports);
-    const allDates = [...new Set([...historyDates, ...archivedDates])].sort().reverse();
+        if (error) {
+            showToast('Error loading report dates: ' + error.message, 'danger');
+            list.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--danger);">Failed to load reports</div>';
+            return;
+        }
 
-    if (allDates.length === 0) {
-        list.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">No report data available</div>';
-        return;
-    }
+        const archivedDates = [...new Set(data.map(h => getLocalDateStr(new Date(h.timestamp))))];
 
-    allDates.forEach(date => {
-        const item = document.createElement('div');
-        item.className = 'report-date-item';
-        const isArchive = archivedDates.includes(date) && !historyDates.includes(date);
+        const historyDates = [...new Set(history.map(log => {
+            const d = new Date(log.timestamp);
+            return getLocalDateStr(d);
+        }))];
 
-        item.innerHTML = `
-            <i data-lucide="${isArchive ? 'file-check' : 'file-text'}" style="color: ${isArchive ? 'var(--success)' : 'var(--text-muted)'}"></i>
-            <span>${date} ${isArchive ? '(Finalized)' : '(Active)'}</span>
-        `;
-        item.addEventListener('click', () => {
-            document.querySelectorAll('.report-date-item').forEach(i => i.classList.remove('active'));
-            item.classList.add('active');
-            renderReport(date);
+        const allDates = [...new Set([...historyDates, ...archivedDates])].sort().reverse();
+
+        finalizedReports = {};
+        archivedDates.forEach(date => {
+            finalizedReports[date] = true;
         });
-        list.appendChild(item);
-    });
-    initLucide();
+
+        if (allDates.length === 0) {
+            list.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">No report data available</div>';
+            return;
+        }
+
+        list.innerHTML = '';
+        allDates.forEach(date => {
+            const item = document.createElement('div');
+            item.className = 'report-date-item';
+            const isArchive = archivedDates.includes(date) && !historyDates.includes(date);
+
+            item.innerHTML = `
+                <i data-lucide="${isArchive ? 'file-check' : 'file-text'}" style="color: ${isArchive ? 'var(--success)' : 'var(--text-muted)'}"></i>
+                <span>${date} ${isArchive ? '(Finalized)' : '(Active)'}</span>
+            `;
+            item.addEventListener('click', () => {
+                document.querySelectorAll('.report-date-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+                renderReport(date);
+            });
+            list.appendChild(item);
+        });
+        initLucide();
+    } catch (err) {
+        console.error(err);
+        list.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--danger);">Failed to load reports</div>';
+    }
 }
 
-function renderReport(date) {
+async function renderReport(date) {
     currentViewingReportDate = date;
     const content = document.getElementById('report-content');
     const title = document.getElementById('report-view-title');
@@ -839,98 +849,135 @@ function renderReport(date) {
     title.textContent = `Report: ${date}`;
     document.getElementById('btn-print-report').style.display = 'block';
 
-    // Only show delete for finalized reports
     if (finalizedReports[date]) {
         document.getElementById('btn-delete-report').style.display = 'block';
     } else {
         document.getElementById('btn-delete-report').style.display = 'none';
     }
 
-    // Combine active and archived data for this date
-    const activeDayLogs = history.filter(log => {
-        const d = new Date(log.timestamp);
-        return d.toISOString().split('T')[0] === date;
-    });
+    content.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--text-muted);">Loading report details...</div>';
 
-    const archivedDayLogs = finalizedReports[date] || [];
-    const dayLogs = [...archivedDayLogs, ...activeDayLogs];
-
-    const inward = dayLogs.filter(l => l.type === 'inward');
-    const outward = dayLogs.filter(l => l.type === 'outward');
-
-    let html = `
-        <div class="report-section">
-            <div class="report-section-title">Stock Inward (+)</div>
-            <div class="report-row header">
-                <div>Product</div>
-                <div style="text-align: right;">Qty</div>
-                <div style="text-align: right;">Time</div>
-            </div>
-    `;
-
-    if (inward.length === 0) {
-        html += '<p style="padding: 12px; color: var(--text-muted); font-size: 0.875rem;">No inward movements</p>';
-    } else {
-        inward.forEach(log => {
-            html += `
-                <div class="report-row">
-                    <div><strong>${log.productName}</strong><br><span style="font-size: 0.7rem; color: var(--text-muted);">${log.productSku}</span></div>
-                    <div style="text-align: right; color: var(--success); font-weight: 600;">+${log.quantity}</div>
-                    <div style="text-align: right; font-size: 0.75rem; color: var(--text-muted);">${new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                </div>
-            `;
+    try {
+        const activeDayLogs = history.filter(log => {
+            const d = new Date(log.timestamp);
+            return getLocalDateStr(d) === date;
         });
-    }
 
-    html += `
-        </div>
-        <div class="report-section" style="margin-top: 40px;">
-            <div class="report-section-title">Stock Outward (-)</div>
-            <div class="report-row header">
-                <div>Product</div>
-                <div style="text-align: right;">Qty</div>
-                <div style="text-align: right;">Time</div>
-            </div>
-    `;
+        let archivedDayLogs = [];
+        if (finalizedReports[date]) {
+            const [year, month, day] = date.split('-').map(Number);
+            const startDate = new Date(year, month - 1, day, 0, 0, 0, 0).toISOString();
+            const endDate = new Date(year, month - 1, day, 23, 59, 59, 999).toISOString();
 
-    if (outward.length === 0) {
-        html += '<p style="padding: 12px; color: var(--text-muted); font-size: 0.875rem;">No outward movements</p>';
-    } else {
-        outward.forEach(log => {
-            html += `
-                <div class="report-row">
-                    <div><strong>${log.productName}</strong><br><span style="font-size: 0.7rem; color: var(--text-muted);">${log.productSku}</span></div>
-                    <div style="text-align: right; color: var(--danger); font-weight: 600;">-${log.quantity}</div>
-                    <div style="text-align: right; font-size: 0.75rem; color: var(--text-muted);">${new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+            const { data, error } = await supabase
+                .from('history')
+                .select('*')
+                .eq('finalized', true)
+                .gte('timestamp', startDate)
+                .lte('timestamp', endDate)
+                .order('timestamp', { ascending: true });
+
+            if (error) {
+                showToast('Error loading report details: ' + error.message, 'danger');
+                content.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--danger);">Failed to load report details</div>';
+                return;
+            }
+            archivedDayLogs = data;
+        }
+
+        const dayLogs = [
+            ...archivedDayLogs.map(h => ({
+                timestamp: h.timestamp,
+                productSku: h.product_sku,
+                productName: h.product_name,
+                type: h.type,
+                quantity: h.quantity,
+                oldBalance: h.old_balance,
+                newBalance: h.new_balance,
+                note: h.note
+            })),
+            ...activeDayLogs
+        ];
+
+        const inward = dayLogs.filter(l => l.type === 'inward');
+        const outward = dayLogs.filter(l => l.type === 'outward');
+
+        let html = `
+            <div class="report-section">
+                <div class="report-section-title">Stock Inward (+)</div>
+                <div class="report-row header">
+                    <div>Product</div>
+                    <div style="text-align: right;">Qty</div>
+                    <div style="text-align: right;">Time</div>
                 </div>
-            `;
-        });
+        `;
+
+        if (inward.length === 0) {
+            html += '<p style="padding: 12px; color: var(--text-muted); font-size: 0.875rem;">No inward movements</p>';
+        } else {
+            inward.forEach(log => {
+                html += `
+                    <div class="report-row">
+                        <div><strong>${log.productName}</strong><br><span style="font-size: 0.7rem; color: var(--text-muted);">${log.productSku}</span></div>
+                        <div style="text-align: right; color: var(--success); font-weight: 600;">+${log.quantity}</div>
+                        <div style="text-align: right; font-size: 0.75rem; color: var(--text-muted);">${new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    </div>
+                `;
+            });
+        }
+
+        html += `
+            </div>
+            <div class="report-section" style="margin-top: 40px;">
+                <div class="report-section-title">Stock Outward (-)</div>
+                <div class="report-row header">
+                    <div>Product</div>
+                    <div style="text-align: right;">Qty</div>
+                    <div style="text-align: right;">Time</div>
+                </div>
+        `;
+
+        if (outward.length === 0) {
+            html += '<p style="padding: 12px; color: var(--text-muted); font-size: 0.875rem;">No outward movements</p>';
+        } else {
+            outward.forEach(log => {
+                html += `
+                    <div class="report-row">
+                        <div><strong>${log.productName}</strong><br><span style="font-size: 0.7rem; color: var(--text-muted);">${log.productSku}</span></div>
+                        <div style="text-align: right; color: var(--danger); font-weight: 600;">-${log.quantity}</div>
+                        <div style="text-align: right; font-size: 0.75rem; color: var(--text-muted);">${new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                    </div>
+                `;
+            });
+        }
+
+        html += '</div>';
+
+        const totalIn = inward.reduce((sum, l) => sum + parseInt(l.quantity), 0);
+        const totalOut = outward.reduce((sum, l) => sum + parseInt(l.quantity), 0);
+
+        html += `
+            <div class="card" style="margin-top: 40px; background: var(--bg-main); border: none;">
+                <div style="display: flex; justify-content: space-between; padding: 10px 0;">
+                    <span>Total Items In:</span>
+                    <span style="color: var(--success); font-weight: 700;">${totalIn}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 10px 0;">
+                    <span>Total Items Out:</span>
+                    <span style="color: var(--danger); font-weight: 700;">${totalOut}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border-color); margin-top: 8px; font-weight: 700;">
+                    <span>Net Movement:</span>
+                    <span>${totalIn - totalOut}</span>
+                </div>
+            </div>
+        `;
+
+        content.innerHTML = html;
+    } catch (err) {
+        console.error(err);
+        content.innerHTML = '<div style="padding: 40px; text-align: center; color: var(--danger);">Failed to load report details</div>';
     }
-
-    html += '</div>';
-
-    // Summary
-    const totalIn = inward.reduce((sum, l) => sum + parseInt(l.quantity), 0);
-    const totalOut = outward.reduce((sum, l) => sum + parseInt(l.quantity), 0);
-
-    html += `
-        <div class="card" style="margin-top: 40px; background: var(--bg-main); border: none;">
-            <div style="display: flex; justify-content: space-between; padding: 10px 0;">
-                <span>Total Items In:</span>
-                <span style="color: var(--success); font-weight: 700;">${totalIn}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 10px 0;">
-                <span>Total Items Out:</span>
-                <span style="color: var(--danger); font-weight: 700;">${totalOut}</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--border-color); margin-top: 8px; font-weight: 700;">
-                <span>Net Movement:</span>
-                <span>${totalIn - totalOut}</span>
-            </div>
-        </div>
-    `;
-
-    content.innerHTML = html;
 }
 
 function renderStockListPopup() {
@@ -951,10 +998,12 @@ function renderStockListPopup() {
         row.style.justifyContent = 'space-between';
         row.style.padding = '8px 0';
         row.style.borderBottom = '1px solid var(--border-color)';
+        const stockColor = parseInt(item.stock) === 0 ? 'var(--danger)' : (parseInt(item.stock) < 10 ? 'var(--text-main)' : 'var(--success)');
+
         row.innerHTML = `
             <span style="font-weight: 500;">${item.name}</span>
             <span style="color: var(--text-muted); margin: 0 8px;">--</span>
-            <span style="font-weight: 700; color: ${parseInt(item.stock) < 10 ? 'var(--danger)' : 'var(--text-main)'};">${item.stock}</span>
+            <span style="font-weight: 700; color: ${stockColor};">${item.stock}</span>
         `;
         container.appendChild(row);
     });
@@ -1395,7 +1444,7 @@ function exportInventoryToCSV() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `taruchhaya_inventory_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `taruchhaya_inventory_${getLocalDateStr(new Date())}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1429,7 +1478,7 @@ function exportHistoryToCSV() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `taruchhaya_history_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute("download", `taruchhaya_history_${getLocalDateStr(new Date())}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
